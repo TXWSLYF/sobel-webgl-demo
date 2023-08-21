@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sobel Edge Detection with WebGL</title>
+  </head>
+  <body>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <script>
+      // 获取画布元素和上下文
+      const canvas = document.getElementById("canvas");
+      const gl = canvas.getContext("webgl");
+
+      // 创建顶点着色器和片元着色器
+      const vertexShaderSource = `
+    attribute vec2 position;
+    void main() {
+        gl_Position = vec4(position, 0.0, 1.0);
+    }
+`;
+
+      const fragmentShaderSource = `
+    precision mediump float;
+    uniform sampler2D image;
+    uniform vec2 texSize;
+    void main() {
+        vec2 texelSize = 1.0 / texSize;
+        vec2 offset = texelSize * 1.0; // 可根据需要调整卷积核的大小
+
+        float gx = -1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2(-1, -1)).r +
+                    -2.0 * texture2D(image, gl_FragCoord.xy + offset * vec2( 0, -1)).r +
+                    -1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2( 1, -1)).r +
+                     1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2(-1,  1)).r +
+                     2.0 * texture2D(image, gl_FragCoord.xy + offset * vec2( 0,  1)).r +
+                     1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2( 1,  1)).r;
+
+        float gy = -1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2(-1, -1)).r +
+                    -2.0 * texture2D(image, gl_FragCoord.xy + offset * vec2(-1,  0)).r +
+                    -1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2(-1,  1)).r +
+                     1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2( 1, -1)).r +
+                     2.0 * texture2D(image, gl_FragCoord.xy + offset * vec2( 1,  0)).r +
+                     1.0 * texture2D(image, gl_FragCoord.xy + offset * vec2( 1,  1)).r;
+
+        float magnitude = length(vec2(gx, gy));
+        gl_FragColor = vec4(vec3(magnitude), 1.0);
+    }
+`;
+
+      // 编译着色器
+      function compileShader(shaderSource, shaderType) {
+        const shader = gl.createShader(shaderType);
+        gl.shaderSource(shader, shaderSource);
+        gl.compileShader(shader);
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+          console.error(
+            "Shader compilation error:",
+            gl.getShaderInfoLog(shader)
+          );
+          gl.deleteShader(shader);
+          return null;
+        }
+        return shader;
+      }
+
+      const vertexShader = compileShader(vertexShaderSource, gl.VERTEX_SHADER);
+      const fragmentShader = compileShader(
+        fragmentShaderSource,
+        gl.FRAGMENT_SHADER
+      );
+
+      // 创建着色程序
+      const shaderProgram = gl.createProgram();
+      gl.attachShader(shaderProgram, vertexShader);
+      gl.attachShader(shaderProgram, fragmentShader);
+      gl.linkProgram(shaderProgram);
+
+      if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+        console.error(
+          "Program linking error:",
+          gl.getProgramInfoLog(shaderProgram)
+        );
+      }
+
+      gl.useProgram(shaderProgram);
+
+      // 创建顶点缓冲区
+      const vertices = new Float32Array([
+        -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0,
+      ]);
+      const vertexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+      const positionAttrib = gl.getAttribLocation(shaderProgram, "position");
+      gl.enableVertexAttribArray(positionAttrib);
+      gl.vertexAttribPointer(positionAttrib, 2, gl.FLOAT, false, 0, 0);
+
+      // 创建纹理
+      const imageTexture = gl.createTexture();
+      const imageLocation = gl.getUniformLocation(shaderProgram, "image");
+      const texSizeLocation = gl.getUniformLocation(shaderProgram, "texSize");
+
+      // 加载图像
+      const image = new Image();
+      image.onload = function () {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, imageTexture);
+        gl.texImage2D(
+          gl.TEXTURE_2D,
+          0,
+          gl.RGBA,
+          gl.RGBA,
+          gl.UNSIGNED_BYTE,
+          image
+        );
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+        gl.uniform1i(imageLocation, 0);
+        gl.uniform2f(texSizeLocation, image.width, image.height);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      };
+
+      image.src = "IMG_1254.JPG"; // 替换为您要加载的图像路径
+    </script>
+  </body>
+</html>

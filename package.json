@@ -1,0 +1,14 @@
+{
+  "name": "sobel-webgl-demo",
+  "version": "1.0.0",
+  "main": "index.js",
+  "author": "alex <luyufeng@ginzaxiaoma.com>",
+  "license": "MIT",
+  "dependencies": {
+    "rollup": "^3.28.0",
+    "typescript": "^5.1.6"
+  },
+  "scripts": {
+    "dev": "npx tsc --watch"
+  }
+}
