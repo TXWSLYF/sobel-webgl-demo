@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>摄像头实时显示</title>
+  </head>
+  <body>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <script>
+      // 获取 video 和 canvas 元素
+      const videoElement = document.getElementById("video");
+      const canvasElement = document.getElementById("canvas");
+      const gl = canvasElement.getContext("webgl");
+
+      // 请求摄像头许可
+      navigator.mediaDevices
+        .getUserMedia({ video: true })
+        .then(function (stream) {
+          // 将视频流分配给 video 元素
+          videoElement.srcObject = stream;
+          videoElement.play();
+        })
+        .catch(function (error) {
+          console.error("获取摄像头许可失败:", error);
+        });
+
+      // 创建 WebGL 着色器程序，这里使用了一个简单的着色器
+      const vertexShaderSource = `
+                attribute vec2 a_position;
+                varying vec2 v_texCoord;
+                void main() {
+                    gl_Position = vec4(a_position, 0, 1);
+                    v_texCoord = a_position * 0.5 + 0.5;
+                }
+            `;
+
+      const fragmentShaderSource = `
+                precision mediump float;
+                uniform sampler2D u_texture;
+                varying vec2 v_texCoord;
+                void main() {
+                    gl_FragColor = texture2D(u_texture, v_texCoord);
+                }
+            `;
+
+      const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+      gl.shaderSource(vertexShader, vertexShaderSource);
+      gl.compileShader(vertexShader);
+
+      const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+      gl.shaderSource(fragmentShader, fragmentShaderSource);
+      gl.compileShader(fragmentShader);
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program);
+      gl.useProgram(program);
+
+      const positionLocation = gl.getAttribLocation(program, "a_position");
+      const uTextureLocation = gl.getUniformLocation(program, "u_texture");
+
+      // 创建纹理对象
+      const texture = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.uniform1i(uTextureLocation, 0);
+
+      // 创建顶点缓冲区
+      const positionBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      const positions = new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]);
+      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+      // 当视频元素准备好时开始绘制
+      videoElement.addEventListener("playing", function () {
+        // 设置 canvas 大小与视频流相同
+        canvasElement.width = videoElement.videoWidth;
+        canvasElement.height = videoElement.videoHeight;
+
+        // 设置视口，保持与 Canvas 大小一致
+        gl.viewport(0, 0, videoElement.videoWidth, videoElement.videoHeight);
+
+        // 渲染函数
+        function renderFrame() {
+          gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            videoElement
+          );
+          gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+          requestAnimationFrame(renderFrame);
+        }
+
+        renderFrame();
+      });
+    </script>
+  </body>
+</html>
